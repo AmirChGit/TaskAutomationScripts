@@ -102,6 +102,8 @@ def filter_excel_file(file_path, filters):
                 df = df[df[key].str.contains('|'.join(villes), case=False, na=False)]
             elif key == 'TarifHoraire':
                 df = df[df[key] <= float(value)]
+            elif key == 'NombreAnimationMoins2AnsToutesMatieresConfondues':
+                df = df[df[key] >= int(value)]
             else:
                 df = df[df[key].str.contains(value, case=False, na=False)]
     
