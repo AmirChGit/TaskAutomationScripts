@@ -4,6 +4,10 @@ import tkinter as tk
 from tkinter import simpledialog
 import keyboard
 import sys
+import win32com.client as win32
+import os
+import pandas as pd
+from pywinauto import Application, Desktop
 
 def get_user_input():
     root = tk.Tk()
@@ -17,6 +21,116 @@ def check_escape():
     if keyboard.is_pressed('esc'):
         print("Échap pressé. Arrêt du script.")
         sys.exit()
+
+def save_current_excel_file(destination_directory, matiere):
+    # Initialiser l'application Excel via COM
+    excel = win32.Dispatch('Excel.Application')
+    
+    # Vérifier si des classeurs sont ouverts
+    if excel.Workbooks.Count == 0:
+        print("Aucun fichier Excel ouvert.")
+        return
+    
+    # Obtenir le classeur actif
+    workbook = excel.ActiveWorkbook
+    
+    # Créer le nouveau chemin de sauvegarde avec le nom basé sur la matière
+    new_file_name = f"{matiere}_Intervenant.xlsx"
+    new_path = os.path.join(destination_directory, new_file_name)
+    
+    # Enregistrer le fichier dans le nouveau répertoire
+    workbook.SaveAs(new_path)
+    print(f"Fichier enregistré sous: {new_path}")
+    return new_path
+
+def show_filter_popup(matiere, file_path):
+    root = tk.Tk()
+    root.title("Critères de sélection")
+    
+    tk.Label(root, text="Nom").grid(row=0)
+    tk.Label(root, text="Prénom").grid(row=1)
+    tk.Label(root, text="Email").grid(row=2)
+    tk.Label(root, text="Numéro").grid(row=3)
+    tk.Label(root, text="Ville(s)").grid(row=4)
+    tk.Label(root, text="Tarif Horaire Maximal").grid(row=5)
+    tk.Label(root, text="Nombre d'Interventions").grid(row=6)
+    tk.Label(root, text="Date de la Dernière Intervention").grid(row=7)
+    
+    nom = tk.Entry(root)
+    prenom = tk.Entry(root)
+    email = tk.Entry(root)
+    numero = tk.Entry(root)
+    ville = tk.Entry(root)
+    tarif_horaire = tk.Entry(root)
+    nombre_interventions = tk.Entry(root)
+    derniere_intervention = tk.Entry(root)
+    
+    nom.grid(row=0, column=1)
+    prenom.grid(row=1, column=1)
+    email.grid(row=2, column=1)
+    numero.grid(row=3, column=1)
+    ville.grid(row=4, column=1)
+    tarif_horaire.grid(row=5, column=1)
+    nombre_interventions.grid(row=6, column=1)
+    derniere_intervention.grid(row=7, column=1)
+    
+    def submit_filters():
+        filters = {
+            'NomPersonne': nom.get(),
+            'PrenomPersonne': prenom.get(),
+            'EmailPersonne': email.get(),
+            'PortablePersonne': numero.get(),
+            'VillePersonne': ville.get(),
+            'TarifHoraire': tarif_horaire.get(),
+            'NombreAnimationMoins2AnsToutesMatieresConfondues': nombre_interventions.get(),
+            'DerniereAnimationToutesMatieresConfondues': derniere_intervention.get()
+        }
+        root.destroy()
+        filter_excel_file(file_path, filters)
+    
+    tk.Button(root, text='Soumettre', command=submit_filters).grid(row=8, column=1, sticky=tk.W, pady=4)
+    root.mainloop()
+
+def filter_excel_file(file_path, filters):
+    df = pd.read_excel(file_path)
+    
+    # Appliquer les filtres
+    for key, value in filters.items():
+        if value:
+            if key == 'VillePersonne':
+                villes = [v.strip() for v in value.split(',')]
+                df = df[df[key].str.contains('|'.join(villes), case=False, na=False)]
+            elif key == 'TarifHoraire':
+                df = df[df[key] <= float(value)]
+            else:
+                df = df[df[key].str.contains(value, case=False, na=False)]
+    
+    top_5 = df.head(5)
+    print("Top 5 Intervenants selon les critères :")
+    print(top_5)
+    
+    output_file = file_path.replace('.xlsx', '_Filtré.xlsx')
+    top_5.to_excel(output_file, index=False)
+    print(f"Fichier filtré enregistré sous: {output_file}")
+
+    # Ouvrir le fichier Excel filtré
+    os.startfile(output_file)
+
+def wait_for_export_done():
+    # Utiliser pywinauto pour attendre l'apparition de la fenêtre
+    print("En attente de la fenêtre contextuelle d'exportation...")
+    while True:
+        try:
+            # Trouver la fenêtre avec le titre contenant "bora"
+            app = Desktop(backend="uia").window(title_re=".*bora.*")
+            if app.exists():
+                app.wait('visible', timeout=60)
+                print("Export Excel terminée avec succès.")
+                app.OK.click()  # Cliquer sur le bouton OK pour fermer la fenêtre
+                break
+        except Exception as e:
+            time.sleep(1)
+            continue
 
 # Obtenir la matière recherchée de l'utilisateur
 matiere = get_user_input()
@@ -56,13 +170,13 @@ pyautogui.doubleClick()
 check_escape()
 
 # États et courriers
-time.sleep(1)
+time.sleep(3)
 pyautogui.moveTo(169, 33)
 pyautogui.click()
 check_escape()
 
 # Gestion des requêtes
-time.sleep(1)
+time.sleep(2)
 pyautogui.moveTo(159, 75)
 pyautogui.click()
 time.sleep(1)
@@ -96,16 +210,25 @@ pyautogui.click()
 time.sleep(5)
 check_escape()
 
+
 # Exporter vers Excel
 pyautogui.moveTo(67, 91)
 pyautogui.click()
-time.sleep(2)
-pyautogui.moveTo(1027, 652)
-pyautogui.click()
-time.sleep(2)
-pyautogui.moveTo(1037, 588)
-pyautogui.click()
-check_escape()
+
+# Attendre la fenêtre contextuelle d'exportation
+wait_for_export_done()
+
+# Sauvegarder le fichier Excel ouvert avec le nom basé sur la matière
+destination_directory = r"C:\Users\achachoui\Documents\Saved_Excel_Files"
+
+# S'assurer que le répertoire de destination existe
+if not os.path.exists(destination_directory):
+    os.makedirs(destination_directory)
+
+file_path = save_current_excel_file(destination_directory, matiere)
+
+# Afficher la fenêtre de filtre après la sauvegarde du fichier
+show_filter_popup(matiere, file_path)
 
 # Fin
 
