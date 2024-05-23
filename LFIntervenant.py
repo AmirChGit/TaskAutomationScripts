@@ -8,6 +8,8 @@ import win32com.client as win32
 import os
 import pandas as pd
 from pywinauto import Application, Desktop
+import psutil
+import subprocess
 
 def get_user_input():
     root = tk.Tk()
@@ -118,6 +120,10 @@ def filter_excel_file(file_path, filters):
     # Ouvrir le fichier Excel filtré
     os.startfile(output_file)
 
+    # Appeler le script de la fenêtre de demande après la génération du fichier Excel filtré
+    from SendEmail import create_popup
+    create_popup(output_file)
+
 def wait_for_export_done():
     # Utiliser pywinauto pour attendre l'apparition de la fenêtre
     print("En attente de la fenêtre contextuelle d'exportation...")
@@ -134,16 +140,22 @@ def wait_for_export_done():
             time.sleep(1)
             continue
 
+def wait_for_bora_window():
+    # Utiliser pywinauto pour attendre l'apparition de la fenêtre "bora"
+    print("En attente de la fenêtre 'bora'...")
+    while True:
+        try:
+            app = Desktop(backend="uia").window(title_re=".*bora.*")
+            if app.exists():
+                app.wait('visible', timeout=60)
+                print("Fenêtre 'bora' détectée.")
+                break
+        except Exception as e:
+            time.sleep(1)
+            continue
+
 # Obtenir la matière recherchée de l'utilisateur
 matiere = get_user_input()
-
-# Vérifiez si l'utilisateur a annulé l'entrée
-if not matiere:
-    print("Aucune matière saisie, arrêt du script.")
-    sys.exit()
-
-# Mettre une pause avant de commencer l'automatisation
-time.sleep(5)
 
 # Vérifier si Échap est pressé à chaque étape critique
 check_escape()
@@ -153,11 +165,8 @@ pyautogui.moveTo(1917, 1049)
 pyautogui.click()
 check_escape()
 
-# Ouvrir FNG
-time.sleep(2)
-pyautogui.moveTo(60, 625)
-pyautogui.doubleClick()
-check_escape()
+# Lancer l'application après être allé sur le bureau
+subprocess.Popen(r"C:\Program Files (x86)\CESI\Fng\gpForm.exe")
 
 # Login FNG
 time.sleep(2)
@@ -171,8 +180,11 @@ pyautogui.moveTo(1731, 888)
 pyautogui.doubleClick()
 check_escape()
 
+# Vérifier si la fenêtre 'bora' est ouverte avant de continuer
+wait_for_bora_window()
+
 # États et courriers
-time.sleep(3)
+time.sleep(2)
 pyautogui.moveTo(169, 33)
 pyautogui.click()
 check_escape()
@@ -187,9 +199,9 @@ pyautogui.click()
 check_escape()
 
 pyautogui.write('0614')
-#pyautogui.write('0329')
+time.sleep(1)
 pyautogui.press('enter')
-time.sleep(2)
+#time.sleep(2)
 check_escape()
 
 # Recherche
@@ -211,7 +223,6 @@ pyautogui.moveTo(227, 201)
 pyautogui.click()
 time.sleep(5)
 check_escape()
-
 
 # Exporter vers Excel
 pyautogui.moveTo(67, 91)
